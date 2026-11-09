@@ -1,0 +1,60 @@
+# Roda os testes automáticos a cada push e a cada pull request.
+# Sem chave do Gemini e sem custo: o modelo é o falso (agente/falso.py).
+# Se ficar vermelho, alguma promessa do projeto quebrou (limite, permissão, medida...).
+name: testes
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  testes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    # Um Postgres com pgvector de verdade, igual ao do docker-compose, só para o teste.
+    services:
+      db:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: radar
+          POSTGRES_PASSWORD: senha-de-teste-ci
+          POSTGRES_DB: radar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U radar -d radar"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGHOST: localhost
+      PGUSER: radar
+      PGPASSWORD: senha-de-teste-ci
+      PGDATABASE: radar
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Só o necessário para os testes. sentence-transformers e torch (gigabytes) ficam
+      # de fora: os testes trocam a busca no perfil por uma falsa (tests/conftest.py).
+      - name: Instalar dependências
+        run: >
+          pip install fastapi==0.115.6 "psycopg[binary]==3.2.3" pgvector==0.3.6
+          google-genai==2.34.0 pytest==8.3.4 httpx==0.28.1
+
+      - name: Testes do agente (harness, avaliação, API)
+        working-directory: agente
+        run: pytest -v
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Teste do código que limpa e-mails (n8n)
+        run: node n8n/teste-limpar-email.js

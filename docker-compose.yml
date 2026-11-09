@@ -1,0 +1,115 @@
+# Radar de Estágios: os três serviços da Fase 1.
+#
+# Comando principal:  docker compose up --build
+# O Compose lê o arquivo .env desta pasta e troca cada ${VARIAVEL} pelo valor dele.
+
+services:
+
+  # ---------------------------------------------------------------- banco
+  db:
+    # Postgres oficial com a extensão pgvector já compilada dentro.
+    # pgvector é o que vai guardar e comparar os embeddings na Fase 2.
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      # Volume nomeado: os dados do banco moram aqui, fora do container.
+      # Sobrevive a "docker compose down"; só some com "down -v".
+      - db_data:/var/lib/postgresql/data
+      # Scripts nesta pasta rodam UMA vez, só quando o volume está vazio
+      # (primeira subida). Mudou o script? Precisa de "down -v" para rodar de novo.
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # pg_isready responde "sim" só quando o Postgres aceita conexões.
+      # $$ escapa o $ para o Compose não substituir: quem expande é o shell do container.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Sem "ports": o banco fica só na rede interna. O agente e o n8n alcançam
+    # ele por "db:5432"; você entra com "docker compose exec db psql ...".
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------- agente
+  agente:
+    # "build" em vez de "image": a imagem é construída a partir de ./agente/Dockerfile.
+    build: ./agente
+    environment:
+      # Conexão com o banco em variáveis separadas (padrão PG* do Postgres).
+      # Por que não uma URL "postgresql://usuario:senha@db/radar"? Se a senha tiver
+      # @, : ou /, a URL quebra. Separadas, qualquer senha funciona.
+      # Note o host "db": dentro da rede do Compose, o nome do serviço vira o endereço.
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      # Onde a biblioteca de embeddings guarda o modelo baixado (aponta para o volume abaixo).
+      HF_HOME: /models
+      # Fase 3: chave e modelo do Gemini, e os limites do harness.
+      # ${X:-padrao} = usa o valor do .env; se não existir, usa o padrão depois do ":-".
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      MODELO_LLM: ${MODELO_LLM:-gemini-3.5-flash-lite}
+      LIMITE_PASSOS: ${LIMITE_PASSOS:-8}
+      LIMITE_SEGUNDOS: ${LIMITE_SEGUNDOS:-120}
+      LIMITE_TOKENS: ${LIMITE_TOKENS:-60000}
+      # Fase 4: chave exigida no cabeçalho X-API-Key. Sem ela, o agente recusa tudo (menos /health).
+      AGENTE_API_KEY: ${AGENTE_API_KEY:-}
+      # Fase 5: preço em US$ por 1 milhão de tokens, só para o relatório estimar custo.
+      # Plano gratuito: deixe 0. Preços em ai.google.dev/gemini-api/docs/pricing.
+      PRECO_ENTRADA_1M: ${PRECO_ENTRADA_1M:-0}
+      PRECO_SAIDA_1M: ${PRECO_SAIDA_1M:-0}
+    volumes:
+      # Seus documentos entram no container só para leitura (:ro). Ficam no seu PC, fora da imagem.
+      - ./dados:/app/dados:ro
+      # Cache do modelo (~470 MB): baixa uma vez e sobrevive a rebuilds e a "down".
+      - modelos:/models
+      # Fase 5: relatórios da avaliação saem aqui, na pasta relatorios/ do seu PC (fora do Git).
+      - ./relatorios:/app/relatorios
+    ports:
+      # ip:porta_no_seu_pc:porta_no_container. Publicada para você abrir localhost:8000/docs.
+      # 127.0.0.1 = só o seu PC alcança. Sem ele, outro aparelho na mesma rede Wi-Fi também alcançaria.
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        # Espera o healthcheck do banco passar, não só o container existir.
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------- n8n
+  n8n:
+    # ponytail: tag "latest" para começar; fixe a versão (ex.: n8nio/n8n:1.x.y) quando o projeto estabilizar.
+    image: docker.n8n.io/n8nio/n8n:latest
+    environment:
+      # n8n guarda fluxos, execuções e credenciais no Postgres, num banco próprio "n8n"
+      # (criado pelo script em db/init). Mesmo servidor, banco separado do agente.
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: db
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: ${POSTGRES_USER}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+      # Criptografa as credenciais que você salvar no n8n. Perdeu = credenciais ilegíveis.
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      GENERIC_TIMEZONE: America/Sao_Paulo
+      TZ: America/Sao_Paulo
+    ports:
+      # Só o seu PC (ver comentário no agente).
+      - "127.0.0.1:5678:5678"
+    volumes:
+      # Configurações locais do n8n (inclui a chave, se ela não vier do .env).
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+# Declaração dos volumes nomeados usados acima. O Docker cria na primeira subida.
+volumes:
+  db_data:
+  n8n_data:
+  modelos:
+
+# Sem bloco "networks": o Compose cria sozinho uma rede padrão
+# (radar-estagios_default) e coloca os três serviços nela.

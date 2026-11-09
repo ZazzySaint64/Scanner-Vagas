@@ -1,0 +1,303 @@
+{
+  "id": "radarRoteamento3",
+  "name": "Radar 3 - Roteamento e aprovação",
+  "active": false,
+  "nodes": [
+    {
+      "id": "9b056c43-fd40-5c1a-80e2-949f0bbca86e",
+      "name": "Recebe a avaliação",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "7cc2d954-4062-5a9a-83ce-34e24a519bbb",
+      "name": "Configurar",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "46f7f28d-d182-5429-8f03-dcdacc7c9901",
+              "name": "telegram_chat_id",
+              "value": "COLE_AQUI_O_SEU_CHAT_ID",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "b9000a24-2d43-5aa1-8bf5-c53e96304848",
+      "name": "Nota alta?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "253dce4d-f088-50b3-9bdc-fcaa256595c6",
+              "leftValue": "={{ $json.avaliacao.nota }}",
+              "rightValue": 7,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "3adaf585-7fc5-5a8c-ab55-9146619a1817",
+      "name": "Avisa você",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        680,
+        -100
+      ],
+      "parameters": {
+        "chatId": "={{ $('Configurar').first().json.telegram_chat_id }}",
+        "text": "=Vaga boa: {{ $json.avaliacao.nota }}/10 ({{ $json.avaliacao.recomendacao }}){{ $json.cache ? ' [do cache]' : '' }}\nEmpresa: {{ $json.empresa || '-' }}\nLink: {{ $json.link || '-' }}\nExecução: {{ $json.execucao_id }}\n\n{{ $json.avaliacao.resumo }}\n\nPontos fortes:\n{{ $json.avaliacao.pontos_fortes.map(p => '- ' + p.ponto).join('\\n') || '- nenhum' }}\n\nLacunas:\n{{ $json.avaliacao.lacunas.map(l => '- ' + l).join('\\n') || '- nenhuma' }}\n\nRascunho:\n{{ $json.rascunho_mensagem || '(sem rascunho)' }}\n\nAprovar ou rejeitar (abra no navegador do PC):\n{{ $execution.resumeFormUrl }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        }
+      }
+    },
+    {
+      "id": "04ffc7ef-a4ea-5e91-b01e-ea8332f230ca",
+      "name": "Espera sua decisão",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        900,
+        -100
+      ],
+      "parameters": {
+        "resume": "form",
+        "formTitle": "Radar de Estágios: aprovar rascunho?",
+        "formDescription": "Aprovar NÃO envia nada à empresa. Só te devolve o rascunho final no Telegram.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Decisão",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "aprovar"
+                  },
+                  {
+                    "option": "rejeitar"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Ajustes no rascunho",
+              "fieldType": "textarea",
+              "placeholder": "Opcional: cole aqui o rascunho editado"
+            }
+          ]
+        },
+        "limitWaitTime": true,
+        "limitType": "afterTimeInterval",
+        "resumeAmount": 72,
+        "resumeUnit": "hours",
+        "options": {}
+      },
+      "webhookId": "1b4c2db6-0ec9-51a9-a817-0780944f9c5d"
+    },
+    {
+      "id": "f2b1ce04-6284-5027-b856-00e8fa185b18",
+      "name": "Aprovou?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        -100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "21551421-d4a4-5fb3-a6a8-3ca1013ae557",
+              "leftValue": "={{ $json['Decisão'] }}",
+              "rightValue": "aprovar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "3d6443ea-f508-50a0-8aa9-adc49b6f826e",
+      "name": "Manda o rascunho final",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1340,
+        -200
+      ],
+      "parameters": {
+        "chatId": "={{ $('Configurar').first().json.telegram_chat_id }}",
+        "text": "=Rascunho aprovado para {{ $('Configurar').first().json.empresa || 'a vaga' }}.\nEnviar é com você: copie, revise e mande pelo canal da empresa.\n\n{{ $json['Ajustes no rascunho'] || $('Configurar').first().json.rascunho_mensagem || '(sem rascunho)' }}\n\nLink: {{ $('Configurar').first().json.link || '-' }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        }
+      }
+    },
+    {
+      "id": "edbe1865-55d9-5afa-9383-f048c79ad285",
+      "name": "Rejeitada ou expirada",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "80e95595-d659-5cf1-b89a-84c6b27f35fe",
+      "name": "Nota baixa: só registrada",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        680,
+        100
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Recebe a avaliação": {
+      "main": [
+        [
+          {
+            "node": "Configurar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configurar": {
+      "main": [
+        [
+          {
+            "node": "Nota alta?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nota alta?": {
+      "main": [
+        [
+          {
+            "node": "Avisa você",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nota baixa: só registrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisa você": {
+      "main": [
+        [
+          {
+            "node": "Espera sua decisão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Espera sua decisão": {
+      "main": [
+        [
+          {
+            "node": "Aprovou?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aprovou?": {
+      "main": [
+        [
+          {
+            "node": "Manda o rascunho final",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rejeitada ou expirada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "pinData": {},
+  "tags": []
+}

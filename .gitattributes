@@ -1,0 +1,2 @@
+# Menus .bat precisam de CRLF no Windows (rótulos do goto quebram com LF)
+*.bat text eol=crlf

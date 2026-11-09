@@ -1,0 +1,132 @@
+{
+  "id": "radarAlertaEmai2",
+  "name": "Radar 2 - Alertas por e-mail",
+  "active": false,
+  "nodes": [
+    {
+      "id": "ea7efdd8-6e54-5517-9ee8-a45550f9c40c",
+      "name": "Lê alertas de vaga",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "mailbox": "Radar",
+        "postProcessAction": "read",
+        "format": "simple",
+        "options": {
+          "customEmailConfig": "[\"UNSEEN\"]"
+        }
+      }
+    },
+    {
+      "id": "69c52168-03f0-5d7f-8221-0c4a320dbf8d",
+      "name": "Limpa o e-mail",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Código do nó Code \"Limpa o e-mail\" (fluxo 2). Já vem dentro do JSON do fluxo;\n// este arquivo é a cópia legível e testável (fase4.bat, opção de teste).\n//\n// Entra: e-mails lidos pelo gatilho IMAP (campos subject, from, textPlain, textHtml).\n// Sai: { texto, empresa, link } no formato que a rota /avaliar-vaga espera.\n//\n// ponytail: limpeza genérica. Um e-mail de alerta com 5 vagas vira UMA avaliação\n// do e-mail inteiro. Separar vaga por vaga exige regras por site (LinkedIn, Gupy...).\n\nfunction limpar(e) {\n  const bruto = (e.textPlain || '') + '\\n' + (e.textHtml || '');\n  // O primeiro link costuma ser o da vaga. Pego ANTES de tirar as tags, senão o\n  // href some junto. Para em aspas e < >, que delimitam o link dentro do HTML.\n  const achado = bruto.match(/https?:\\/\\/[^\\s\"'<>]+/);\n  const link = achado ? achado[0].replace(/&amp;/g, '&').slice(0, 500) : null;  // 500 = limite da rota\n\n  let texto = e.textPlain || '';\n  if (!texto.trim() && e.textHtml) {\n    texto = e.textHtml\n      .replace(/<(style|script|head)[\\s\\S]*?<\\/\\1>/gi, ' ')   // CSS e scripts não são texto\n      .replace(/<br\\s*\\/?>|<\\/(p|div|li|tr|h\\d)>/gi, '\\n')     // fim de bloco vira quebra de linha\n      .replace(/<[^>]+>/g, ' ')                                // tira as outras tags\n      .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<')\n      .replace(/&gt;/g, '>').replace(/&quot;/g, '\"').replace(/&#39;|&apos;/g, \"'\");\n  }\n\n  texto = texto\n    .replace(/https?:\\/\\/\\S+/g, ' ')  // links de rastreio são enormes e só gastam tokens\n    .split('\\n')\n    .map(l => l.replace(/[ \\t]+/g, ' ').trim())\n    .filter(Boolean)\n    // Rodapé de e-mail não diz nada sobre a vaga.\n    .filter(l => !/descadastr|unsubscribe|cancelar (a )?inscri|privacidade|privacy|prefer[eê]ncias de e-?mail/i.test(l))\n    .join('\\n')\n    .slice(0, 20000);  // mesmo limite da rota /avaliar-vaga\n\n  // Sem nome de empresa confiável no e-mail: usa o assunto como rótulo.\n  const empresa = (e.subject || 'alerta de vaga').toString().slice(0, 200);\n  return { texto, empresa, link };\n}\n\n// O agente recusa texto com menos de 50 caracteres; e-mail vazio nem é enviado.\nreturn $input.all()\n  .map(item => ({ json: limpar(item.json) }))\n  .filter(item => item.json.texto.length >= 50);\n"
+      }
+    },
+    {
+      "id": "d371b65a-b4a6-5b0c-8d82-ed9cf3dbda9b",
+      "name": "Chama o agente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://agente:8000/avaliar-vaga",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ texto: $json.texto, empresa: $json.empresa, link: $json.link }) }}",
+        "options": {
+          "timeout": 150000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "radarApiKeyCred1",
+          "name": "Radar X-API-Key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "eb6bcc16-8dc3-5081-8b84-651beb4ec422",
+      "name": "Roteamento e aprovação",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "radarRoteamento3",
+          "mode": "id"
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Lê alertas de vaga": {
+      "main": [
+        [
+          {
+            "node": "Limpa o e-mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpa o e-mail": {
+      "main": [
+        [
+          {
+            "node": "Chama o agente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chama o agente": {
+      "main": [
+        [
+          {
+            "node": "Roteamento e aprovação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "pinData": {},
+  "tags": []
+}
