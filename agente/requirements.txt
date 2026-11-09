@@ -1,0 +1,20 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+
+# Fase 2 (RAG)
+# Driver do Postgres para Python (versão 3, com binários prontos).
+psycopg[binary]==3.2.3
+# Ensina o psycopg a mandar/receber o tipo "vector" do pgvector como lista de números.
+pgvector==0.3.6
+# Gera os embeddings localmente. O torch (motor de cálculo) é instalado
+# antes, no Dockerfile, na versão só-CPU: a versão padrão traz CUDA e pesa gigabytes a mais.
+sentence-transformers==3.3.1
+transformers==4.47.1
+
+# Fase 3 (harness)
+# SDK oficial do Google para a API do Gemini. Fixado na 2.x estável (a 3.0 acabou de sair).
+google-genai==2.34.0
+
+# Fase 6 (testes automáticos). httpx é o que o TestClient do FastAPI usa por baixo.
+pytest==8.3.4
+httpx==0.28.1

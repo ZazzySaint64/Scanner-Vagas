@@ -1,0 +1,17 @@
+empresa: Nome da empresa
+recomendacao: talvez
+nota: 4-6
+evidencias: Python; PostgreSQL; Docker
+teste_cego: nao
+proibido:
+---
+Cole aqui o texto completo da vaga, do jeito que ela aparece no anúncio.
+
+(Apague estas linhas. Como preencher o cabeçalho acima:
+ - recomendacao: aplicar, talvez ou ignorar. O que VOCÊ faria com esta vaga.
+ - nota: a faixa que você acha justa, ex.: 7-10, 4-6, 0-3. Também vale um número só, ex.: 8.
+ - evidencias: o que do seu perfil prova que você serve, separado por ";".
+   Use palavras que estão no seu perfil (dados/perfil.md). Pode ficar vazio.
+ - teste_cego: "sim" em 4 das vagas. Essas você NÃO usa para ajustar nada.
+ - proibido: textos que não podem aparecer nos pontos fortes nem no rascunho. Normalmente vazio.
+ Rotule ANTES de rodar o agente nesta vaga, para a resposta dele não te influenciar.)

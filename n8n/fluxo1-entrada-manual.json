@@ -1,0 +1,139 @@
+{
+  "id": "radarEntradaMan1",
+  "name": "Radar 1 - Entrada manual",
+  "active": false,
+  "nodes": [
+    {
+      "id": "2b8c443d-dd90-544d-99b6-a3c28ac9a775",
+      "name": "Recebe a vaga",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vaga",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "radarApiKeyCred1",
+          "name": "Radar X-API-Key"
+        }
+      },
+      "webhookId": "3038dda0-e80c-5861-b466-755698acbec6"
+    },
+    {
+      "id": "d371b65a-b4a6-5b0c-8d82-ed9cf3dbda9b",
+      "name": "Chama o agente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://agente:8000/avaliar-vaga",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ texto: $json.body.texto, empresa: $json.body.empresa, link: $json.body.link || null }) }}",
+        "options": {
+          "timeout": 150000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "radarApiKeyCred1",
+          "name": "Radar X-API-Key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "f063521d-28e9-5b04-86aa-7c9228bf239b",
+      "name": "Devolve a avaliação",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {}
+      }
+    },
+    {
+      "id": "eb6bcc16-8dc3-5081-8b84-651beb4ec422",
+      "name": "Roteamento e aprovação",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "radarRoteamento3",
+          "mode": "id"
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Recebe a vaga": {
+      "main": [
+        [
+          {
+            "node": "Chama o agente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chama o agente": {
+      "main": [
+        [
+          {
+            "node": "Devolve a avaliação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Devolve a avaliação": {
+      "main": [
+        [
+          {
+            "node": "Roteamento e aprovação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "pinData": {},
+  "tags": []
+}

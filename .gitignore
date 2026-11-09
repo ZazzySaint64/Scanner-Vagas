@@ -1,0 +1,15 @@
+# Segredos: só existem na sua máquina
+.env
+
+# Seus dados pessoais (currículo, projetos, preferências)
+dados/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+relatorios/
+.pytest_cache/
+
+# Painel de progresso pessoal (artifact), não é parte do sistema
+painel/
