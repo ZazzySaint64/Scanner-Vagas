@@ -66,7 +66,7 @@ docker compose exec agente python indexar.py
 | http://localhost:5678 | n8n (fluxos em `n8n/`, passo a passo em `n8n/GUIA.md`) |
 | `docker compose exec agente pytest` | Testes |
 
-> 💡 No Windows, os menus `fase1.bat` a `fase6.bat` fazem cada etapa sem digitar comandos.
+> 💡 No Windows, `radar.bat` liga e desliga tudo com dois cliques, e os menus `fase1.bat` a `fase6.bat` fazem cada etapa sem digitar comandos.
 
 ## ⚙️ Como funciona
 
